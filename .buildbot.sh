@@ -2,6 +2,9 @@
 
 set -e
 
+echo "oh noes!"
+exit 1
+
 # First build without the JIT and check the tests still work.
 make -j `nproc`
 cd tests
