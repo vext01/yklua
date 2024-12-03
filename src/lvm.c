@@ -1747,6 +1747,10 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           updatetrap(ci);  /* C call; nothing else to be done */
         else {  /* Lua call: run function in this same C frame */
           ci = newci;
+#ifdef USE_YK
+          // Jumps outside (before) the interpreter loop.
+          yk_mt_early_return(G(L)->yk_mt);
+#endif
           goto startfunc;
         }
         vmbreak;
@@ -1768,9 +1772,13 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           lua_assert(L->tbclist.p < base);  /* no pending tbc variables */
           lua_assert(base == ci->func.p + 1);
         }
-        if ((n = luaD_pretailcall(L, ci, ra, b, delta)) < 0)  /* Lua function? */
+        if ((n = luaD_pretailcall(L, ci, ra, b, delta)) < 0) { /* Lua function? */
+#ifdef USE_YK
+          // Jumps outside (before) the interpreter loop.
+          yk_mt_early_return(G(L)->yk_mt);
+#endif
           goto startfunc;  /* execute the callee */
-        else {  /* C function? */
+        } else {  /* C function? */
           ci->func.p -= delta;  /* restore 'func' (if vararg) */
           luaD_poscall(L, ci, n);  /* finish caller */
           updatetrap(ci);  /* 'luaD_poscall' can change hooks */
@@ -1838,6 +1846,12 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           }
         }
        ret:  /* return from a Lua function */
+#ifdef USE_YK
+        // Two cases to consider:
+        //  - `return` -- obviously escapes the loop.
+        //  - `goto returning` jumps to outside (before) the interpreter loop.
+        yk_mt_early_return(G(L)->yk_mt);
+#endif
         if (ci->callstatus & CIST_FRESH)
           return;  /* end this frame */
         else {
@@ -1958,6 +1972,9 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
       }
     }
   }
+  // Yk: Note you can't exit the interpreter loop "naturally" since the loop
+  // has no exit condition: `for(;;)`. So no `yk_mt_early_return()` required
+  // here.
 }
 
 /* }================================================================== */
